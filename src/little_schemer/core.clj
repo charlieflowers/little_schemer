@@ -122,3 +122,42 @@
      :else (cond
             (= (first lat) old) (cons new (multisubst new old (rest lat)))
             :else (cons (first lat) (multisubst new old (rest lat)))))))
+
+(def add1
+  (fn [x]
+    (+ x 1)))
+
+(def sub1
+  (fn [x]
+    (- x 1)))
+
+(def plus
+  (fn [a b]
+    (cond
+     (zero? a) b
+     :else (plus (sub1 a) (add1 b))))) ;; he did this differently. he called add1 on (plus a (sub1 b)). He probably had a reason.
+
+(def minus
+  (fn [a b]
+    (cond
+     (zero? b) a
+     :else (sub1 (minus a (sub1 b))))))
+
+(def addtup
+  (fn [xs]
+    (cond
+     (null? xs) 0
+     :else (plus (first xs) (addtup (rest xs))))))
+
+(def mult
+  (fn [a b]
+    (cond
+     (zero? b) 0
+     :else (plus a (mult a (sub1 b))))))
+
+(def tup+
+  (fn [tup1 tup2]
+    (cond
+     (and (null? tup1) (null? tup2)) ()
+     (null? tup1) tup2
+     :else (cons (plus (first tup1) (first tup2)) (tup+ (rest tup1) (rest tup2))))))
