@@ -262,3 +262,47 @@
     (cond
      (one? n) (rest xs)
      :else (cons (first xs) (rempick-with-one (sub1 n) (rest xs))))))
+
+;; rember*: takes a list and an atom, and removes the atom from the list, but also, if the list contains lists, removes the atom
+;;  from THOSE lists, and can go infinitely many levels deep.
+
+(def rember*
+  (fn [a xs]
+    (cond
+     (null? xs) ()
+     :else (cond
+            (slist? (first xs)) (cons (rember* a (first xs)) (rember* a (rest xs)))
+            :else (cond
+                   (eqan? (first xs) a) (rember* a (rest xs))
+                   :else (cons (first xs) (rember* a (rest xs))))))))
+
+(def insertR*
+  (fn [new old xs]
+    (cond
+     (null? xs) () ;; note, at 1st i was surprised to see it doesn't work on vectors. But the def of atom? says that vectors are ATOMS!
+     :else (cond
+            (atom? (first xs)) (cond
+                                (eqan? (first xs) old) (cons old (cons new (insertR* new old (rest xs))))
+                                :else (cons (first xs) (insertR* new old (rest xs))))
+            :else (cons (insertR* new old (first xs)) (insertR* new old (rest xs)))))))
+
+;; Note: I see that he considers the question: (atom? (first xs)) to STILL BE ABOUT XS. And he likes to structure his fn's based
+;;  on a series of questions about each arg. So he would prefer the following structure:
+
+(def rember*-his-way
+  (fn [a xs]
+    (cond
+     (null? xs) ()
+     (atom? (first xs)) (cond
+                         (eqan? (first xs) a) (rember*-his-way a (rest xs))
+                         :else (cons (first xs) (rember*-his-way a (rest xs))))
+     :else (cons (rember*-his-way a (first xs)) (rember*-his-way a (rest xs))))))
+
+(def insertR*-his-way
+  (fn [new old xs]
+    (cond
+     (null? xs) ()
+     (atom? (first xs)) (cond
+                         (eqan? (first xs) old) (cons old (cons new (insertR*-his-way new old (rest xs))))
+                         :else (cons (first xs) (insertR*-his-way new old (rest xs))))
+     :else (cons (insertR*-his-way new old (first xs)) (insertR*-his-way new old (rest xs))))))
