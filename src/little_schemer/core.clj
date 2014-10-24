@@ -238,3 +238,27 @@
      :else (cond
             (number? (first xs)) (cons (first xs) (all-nums (rest xs)))
             :else (all-nums (rest xs))))))
+
+(def eqan?
+  (fn [a b]
+    (cond
+     (and (number? a) (number? b)) (o= a b)
+     :else (= a b))))
+
+(def occur
+  (fn [a xs]
+    (cond
+     (null? xs) 0
+     :else (cond
+            (eqan? a (first xs)) (add1 (occur a (rest xs)))
+            :else (occur a (rest xs))))))
+
+(def one?
+  (fn [a]
+    (eqan? a 1)))
+
+(def rempick-with-one
+  (fn [n xs]
+    (cond
+     (one? n) (rest xs)
+     :else (cons (first xs) (rempick-with-one (sub1 n) (rest xs))))))
