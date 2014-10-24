@@ -306,3 +306,12 @@
                          (eqan? (first xs) old) (cons old (cons new (insertR*-his-way new old (rest xs))))
                          :else (cons (first xs) (insertR*-his-way new old (rest xs))))
      :else (cons (insertR*-his-way new old (first xs)) (insertR*-his-way new old (rest xs))))))
+
+(def occur*
+  (fn [a xs]
+    (cond
+     (null? xs) 0
+     (atom? (first xs)) (cond
+                         (eqan? (first xs) a) (add1 (occur* a (rest xs)))
+                         :else (occur* a (rest xs)))
+     :else (plus (occur* a (first xs)) (occur* a (rest xs))))))
