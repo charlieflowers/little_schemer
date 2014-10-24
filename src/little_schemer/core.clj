@@ -177,3 +177,64 @@
      (zero? b) false
      (zero? a) true
      :else (o< (sub1 a) (sub1 b)))))
+
+(def o=
+  (fn [a b]
+    (cond
+     (and (zero? a) (zero? b)) true
+     (or (zero? a) (zero? b)) false
+     :else (o= (sub1 a) (sub1 b)))))
+
+(def o=with-<-and->
+  (fn [a b]
+    (cond
+     (o< a b) false
+     (o> a b) false
+     :else true)))
+
+(def power
+  (fn [a b]
+    (cond
+     (zero? b) 1
+     :else (mult a (power a (sub1 b))))))
+
+(def div
+  (fn [a b]
+    (cond
+     (o< a b) 0
+     :else (add1 (div (minus a b) b)))))
+
+(def length
+  (fn [xs]
+    (cond
+     (null? xs) 0
+     :else (add1 (length (rest xs))))))
+
+(def pick
+  (fn [n xs]
+    (cond
+     (zero? n) nil  ;; he didn't even include this case. I interpreted his "no answer" bit to be a requirement to return nil
+     (= 1 n) (first xs)
+     :else (pick (sub1 n) (rest xs)))))
+
+(def rempick
+  (fn [n xs]
+    (cond
+     (zero? (sub1 n)) (rest xs)
+     :else (cons (first xs) (rempick (sub1 n) (rest xs))))))
+
+(def no-nums
+  (fn [xs]
+    (cond
+     (null? xs) ()
+     :else (cond
+            (number? (first xs)) (no-nums (rest xs))
+            :else (cons (first xs) (no-nums (rest xs)))))))
+
+(def all-nums
+  (fn [xs]
+    (cond
+     (null? xs) ()
+     :else (cond
+            (number? (first xs)) (cons (first xs) (all-nums (rest xs)))
+            :else (all-nums (rest xs))))))
