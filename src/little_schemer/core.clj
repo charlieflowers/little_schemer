@@ -158,6 +158,22 @@
 (def tup+
   (fn [tup1 tup2]
     (cond
-     (and (null? tup1) (null? tup2)) ()
+     (and (null? tup1) (null? tup2)) () ;; I missed this, but this line is unnecessary. If they're both null, then tup1 is
+;;                                          null and we will return tup 2 (which is null)
      (null? tup1) tup2
+     (null? tup2) tup1
      :else (cons (plus (first tup1) (first tup2)) (tup+ (rest tup1) (rest tup2))))))
+
+(def o>
+  (fn [a b]
+    (cond
+     (zero? a) false
+     (zero? b) true
+     :else (o> (sub1 a) (sub1 b)))))
+
+(def o<
+  (fn [a b]
+    (cond
+     (zero? b) false
+     (zero? a) true
+     :else (o< (sub1 a) (sub1 b)))))
