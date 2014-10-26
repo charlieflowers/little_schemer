@@ -23,7 +23,7 @@
 
 (def null?
   (fn [xs]
-    (seq xs)))
+    (empty? xs)))
 
 (def slist?
   (complement atom?))
@@ -485,14 +485,14 @@
 ;; He next asks "can it be further simplified?" I only see 1 thing: any time you have a cond inside the else of another cond, you
 ;;  at least MIGHT be able to promote some or its questions up to the top cond. Lemme try that.
 
-(def rember-for-sexp-simplified-even-more
-  (fn [sexp xs]
-    (println "in badfn. sexp is " sexp " and xs is " xs)
-    (null? xs) ()
-    (println "made it past null check")
-    (equal? (first xs) sexp) (rest xs)
-    (println "made it past equal check")
-    :else (cons (first xs) (rember-for-sexp-simplified-even-more sexp (rest xs)))))
+;; (def rember-for-sexp-simplified-even-more
+;;   (fn [sexp xs]
+;;     (println "in badfn. sexp is " sexp " and xs is " xs)
+;;     (null? xs) ()
+;;     (println "made it past null check")
+;;     (equal? (first xs) sexp) (rest xs)
+;;     (println "made it past equal check")
+;;     :else (cons (first xs) (rember-for-sexp-simplified-even-more sexp (rest xs)))))
 
 ;; That looks right to me, but it gets a stack overflow error. Let's figure out why. Blows on '(1) '(1)
 ;;
@@ -546,3 +546,58 @@
 ;;  clojure, but it STILL fails.
 ;;
 ;; Maybe I'll see the problem in the morning.
+
+;; Here we are the next day (10/25/2014). I'm going to verify the UNSIMPLIFIED fn, and then re-write the simplified one, and see
+;;  where we are. ALSO, I know I did the OPPOSITE of the proper change when I did (seq coll). It should be empty? coll.
+
+(def rember-for-sexp-mother-of-god-help
+  (fn [sexp xs]
+    (cond
+     (null? xs) ()
+     (equal? (first xs) sexp) (rest xs)
+     :else (cons (first xs) (rember-for-sexp-mother-of-god-help sexp (rest xs))))))
+
+;; Well holy shit, this works right out of the gate. Thankfully. But WHAT WAS THE PROBLEM?!?!
+;;  for comparison, here's the broken one:
+
+;; (def rember-for-sexp-simplified-even-more
+;;   (fn [sexp xs]
+;;     (println "in badfn. sexp is " sexp " and xs is " xs)
+;;     (null? xs) ()
+;;     (println "made it past null check")
+;;     (equal? (first xs) sexp) (rest xs)
+;;     (println "made it past equal check")
+;;     :else (cons (first xs) (rember-for-sexp-simplified-even-more sexp (rest xs)))))
+
+;;  HAHHA HAHAHHA HHHAAAAAAAAAA HAAAAAAAAAAAAAAAAAAAAAAAAAAAAA! OMG!
+;;  You have to laugh or you would FUCKING CRY!
+;;  I left off the call to COND!!! I simply listed a SERIES OF STATEMENTS! Mother of God indeed!
+;; So let's figure out what it was doing. First, (null? xs) was called. It returned false, which was IGNORED. Then,
+;;  the expression () was executed. Then, the println. Then, we checked if the first == sexp. Then, we calculated (rest xs).
+;;  Then, we hit a :else. Was that merely executed???? Then, we recurred on the rest. Yes, it IS changing the variable towards the
+;;  base case each time, but it NEVER stops recurring. It will recur on empty list forever (after it finishes processing the actual
+;;  contents of the list).
+
+;; Well ... that was special. Moving on....
+
+;; Nicely, my simplified version matches his exactly.
+
+;; Now he says simplify insertL*
+
+(def insertL*-simplified
+  (fn [new old xs]
+    (cond
+     (null? xs) ()
+     (atom? (first xs)) (cond
+                         (eqan? (first xs) old) (cons new (cons old (insertL*-simplified new old (rest xs))))
+                         :else (cons (first xs) (insertL*-simplified new old (rest xs))))
+     :else (cons (insertL*-simplified new old (first xs)) (insertL* new old (rest xs))))))
+
+;; This can't be simplified. The inner cond is on a meaningful conditional branch, not on :else
+
+;; He asks, "Can all fns that use eq? and = be changed to use eqan?" Gotta remember, in his world, = compares numbers, and
+;;  eq compares sexps. I don't think he has a primitive that can check equality of lists. So I think they can (except of course
+;;  for eqan? itself, which needs to use these 2.) But let's look deeper, into o=. Ah, there is one thing. o= pretends that negative
+;;  numbers don't exist. So it cannot handle negative numbers. Let's see his answer.
+
+;; Ok, he agrees with me. He continues to pretend negs don't exist, and he says other than eqan, we can rewrite all fns to use eqan.
