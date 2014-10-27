@@ -601,3 +601,189 @@
 ;;  numbers don't exist. So it cannot handle negative numbers. Let's see his answer.
 
 ;; Ok, he agrees with me. He continues to pretend negs don't exist, and he says other than eqan, we can rewrite all fns to use eqan.
+
+;; Keep in mind, he says an expression is an ATOM (or some combo). So 'fuck is an expression.
+;; And parentheses are "not really there". We just have to use them so we can pass around sexps.
+
+;; numbered? asks if the expression is nothing but numbers and + X ^
+
+(def valid-operators #{'+ '* '% }) ;; I'm using % for power because clojure takes over ^ and most other symbols.
+
+(def charlie-numbered?
+  (fn [sexp]
+    (cond
+     (atom? sexp) (or (number? sexp) (valid-operators sexp))
+     (null? sexp) true
+     :else (and (charlie-numbered? (first sexp)) (numbered? (rest sexp))))))
+
+;; After writing the above and looking at his answer, I see he has more requirements that he did not mention. He is actually
+;;  looking at the second member of the sexp and expecting it to be an operator. So everything is gets is of the form
+;;  (number op number). So I will read on before trying to implement things till his intent is clear.
+
+;; I see. He expects to see (expr1 op expr2) or (numeric-atom). Each expression is a sexp, so parsing is handled for us by the reader.
+;; So he is going further than my fn. He not only requires all numbers and operators. He also requires the operators to be in
+;;  the right place (infix).
+
+;; (def numbered?
+;;   (fn [sexp]
+;;     (cond
+;;      (atom? sexp) (number? sexp)
+;;      (null? sexp) true ;; He doesn't have this line, but I don't see how recursion stops without it.
+;;      (null? (rest sexp)) (numbered? (first sexp))
+;;      (valid-operators (first (rest sexp))) (and (numbered? (first sexp)) (numbered? (rest (rest sexp))))
+;;      :else false))
+
+;; I think I'm starting to intuit what he wants. A straight atom is ok: (numbered? 42) is true.
+;; But if the sexp is a list, then it MUST have an operator in the 2nd slot. So (numbered? '(1)) is UNDEFINED. It is "no answer".
+;;  It is outside the requirements, so we shall pretend it does not exist.
+;;
+;; So the cases are:
+;; atom?
+;; Is second item a valid operator?
+;; else false.
+
+;; (def numbered?
+;;   (fn [sexp]
+;;     (cond
+;;      (atom? sexp) (number? sexp)
+;;      (valid-operators (first (rest sexp))) (and (numbered? (first sexp)) (numbered? (rest (rest sexp))))
+;;      :else false)))
+
+;; That was a reasonable thought process, but flawed. consider (numbered? '(1 + 2)). We expect true. However, ultimately, it will
+;; come down to (numbered? (rest (rest sexp))), which would be (numbered '(2)). That would need to be found true, but our def makes
+;;  it false. The 2 (or whatever is on the right hand side) will be recursed on as a list.
+;; So, if the second item in the list is not an operator, then we must have only 1 list, and it must be numbered?.
+
+(def numbered?
+  (fn [sexp]
+    (cond
+     (atom? sexp) (number? sexp)
+     (valid-operators (first (rest sexp))) (and (numbered? (first sexp)) (numbered? (rest (rest sexp))))
+     (null? (rest sexp)) (numbered? (first sexp)) ;; this is the new line
+     :else false)))
+
+;; He then wants me to reflect: since sexp is a list, why aren't there only 2 questions -- empty and else? The answer is, the
+;;  sexp param is not really a list. It is an "arithmetic expression" in list form. And so as always, we handle all the "cases" of
+;;  arithemtic expression. There are only 2: it is either a number or it is 2 expressions separated by an operator. The only weird
+;;  thing is that I found a 3rd case: A list containing only 1 item. I suppose we COULD get rid of that case by taking the FIRST
+;;  of the final list. It would ignore any garbage on the end of the list, but he is not one for error checking anyway.
+;;  So here's that version:
+
+(def numbered-2-cases-only
+  (fn [sexp]
+    (cond
+     (atom? sexp) (number? sexp)
+     (valid-operators (first (rest sexp))) (and (numbered-2-cases-only (first sexp)) (numbered-2-cases-only (first (rest (rest sexp)))))
+     ;; The key change is here: .............................................................................^^^^^
+     :else false)))
+
+;; Now, the 2 in '(1 + 2) will be an atom, not a list. But no, that won't work! What about '(1 + (2 + 3))? It works, but I think I
+;;  would incorrectly say true for (1 + (2 g 3)).
+;;
+;; Seems like a catch-22. But I know I am missing something that will actually make it SIMPLER. Need to find it.
+;; But wait!! ;; strangely, '(1 + (2 g 3)) DOES work. I correctly say false. Why?
+;; Ah, I see! At one point, my fn splits '(1 + (2 g 3)) up, and it checks 1, and then it
+;; checks (2 g 3). It gets to the (2 g 3) part by calling (first (rest (rest sexp))). The inner rest returns '( + (2 g 3)). I knew that.
+;;  But I thought the next rest would return (2 g 3), and then first would return 2 (ignoring the illegal g). But that's wrong!
+;; Instead, that second rest (in execution order) returns ((2 g 3)). A LIST containing the list (2 g 3). Remember, rest always returns
+;;  a list. This time, it's a list containing a list. So then, "first" returns the whole list (2 g 3), which is exactly what we want.
+;;
+;; All this to say, the fn i wrote was correct and I should've never doubted myself! (ahem)
+;;
+;; So this is the kind of confusion over destructuring a deeply nested list that experience can help me get past.
+
+;; He asks, "since aexp was already understood to be an arithmetic expression, can we write the fn simpler?" The only thing I think
+;;  he can be getting at is that we don't have to check that the operators are valid. We can assume we were given a valid aexp, and
+;;  therefore, just act on it. That would be like this:
+
+(def numbered-simpler?
+  (fn [aexp]
+    (cond
+     (atom? aexp) (number? aexp)
+     :else (and (numbered-simpler? (first aexp)) (numbered-simpler? (first (rest (rest aexp))))))))
+
+;; This MIGHT be ok; his requirements are unclear. It allows anything through as an operator. But if you put non-numbers in the
+;;  non-operator slots, it will reject you. (Judgy, I know)
+
+;; And bingo, that's exactly what he had in mind.
+
+;; He's trying to make the point: Go ahead and write the fn with the painful, awful duplication (he had to repeat the big
+;;  "and" clause from my version FOUR TIMES). Get it right and know you got it right. THEN and ONLY THEN, simplify it.
+
+;; Next up: value!
+
+(def value
+  (fn [nexp]
+    (cond
+     (atom? nexp) nexp ;; No requirement for error checking that its not a number
+     (eqan? '+ (first (rest nexp))) (plus (value (first nexp)) (value (first (rest (rest nexp)))))
+     (eqan? '* (first (rest nexp))) (mult (value (first nexp)) (value (first (rest (rest nexp)))))
+     (eqan? '% (first (rest nexp))) (power (value (first nexp)) (value (first (rest (rest nexp))))))))
+
+;; In his spirit of ignoring unsupported cases, I'm not even putting an else onto that cond.
+;; He also ignored possibility of erroneous input. He replaced my 3rd question with else, which makes sense, because he says
+;;  else is always the last question (maybe in scheme it has to be?)
+
+(def value-prefix
+  (fn [nexp]
+    (cond
+     (atom? nexp) nexp
+     (eqan? '+ (first nexp)) (plus (value-prefix (first (rest nexp))) (value-prefix (first (rest (rest nexp)))))
+     (eqan? '* (first nexp)) (mult (value-prefix (first (rest nexp))) (value-prefix (first (rest (rest nexp)))))
+     (eqan? '% (first nexp)) (power (value-prefix (first (rest nexp))) (value-prefix (first (rest (rest nexp))))))))
+
+;; So in the book, he expected you to fall into a trap here, but I didn't. I speculate that the error he expected has something to
+;;  do with thinking of lists instead of subexpressions. I* wish I knew exaclty what he was getting at so I make sure I see the
+;;  principle. I guess if we just blindly went down the habitual path of lists, we'd screw up. But its obvious if you want to add
+;;  the right things, you have to get to them properly. I guess the lesson is, "recurse on the subparts, so make sure you get the
+;;  subparts correctly."
+
+(def first-sub-exp
+  (fn [aexp]
+    (first (rest aexp))))
+
+(def second-sub-exp
+  (fn [aexp]
+    (first (rest (rest aexp)))))
+
+(def operator
+  (fn [aexp]
+    (first aexp)))
+
+(def value-prefix-with-fns
+  (fn [nexp]
+    (cond
+     (atom? nexp) nexp
+     (eqan? (operator nexp) '+) (plus (value-prefix-with-fns (first-sub-exp nexp)) (value-prefix-with-fns (second-sub-exp nexp)))
+     (eqan? (operator nexp) '*) (mult (value-prefix-with-fns (first-sub-exp nexp)) (value-prefix-with-fns (second-sub-exp nexp)))
+     (eqan? (operator nexp) '%) (power (value-prefix-with-fns (first-sub-exp nexp)) (value-prefix-with-fns (second-sub-exp nexp))))))
+
+;; Nice, he shows how to change from infix to prefix by parameterizing first-sub-exp and second-sub-exp and operator.
+
+;; Primitives needed for numbers: number?, zero?, add1 and sub1
+
+(def sero?
+  (fn [x]
+    (cond
+     (atom? x) false       ;; He doesn't even put this line. As always, he ignores the possibility of bad input.
+     :else (null? x))))
+
+(def edd1
+  (fn [xs]
+    (cons () xs)))
+
+(def zub1
+  (fn [xs]
+    (rest xs)))
+
+(def zplus
+  (fn [a b]
+    (cond
+     (sero? b) a
+     :else (edd1 (zplus a (zub1 b))))))
+
+;; Ahh, cool! He's pointing out that the only thing that changed between zplus and plus is the PRIMITIVIES!
+
+;; Cliffhanger here at the end of this chapter. lat would return false for ( (()) ( () () ) ( () () () )), even though with our
+;;  new number representation, that's (1 2 3) and so we'd like lat to return true. The only thing he says about it is YOU MUST
+;;  BEWARE OF SHADOWS ... (and then the chapter ends).
