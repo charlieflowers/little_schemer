@@ -787,3 +787,248 @@
 ;; Cliffhanger here at the end of this chapter. lat would return false for ( (()) ( () () ) ( () () () )), even though with our
 ;;  new number representation, that's (1 2 3) and so we'd like lat to return true. The only thing he says about it is YOU MUST
 ;;  BEWARE OF SHADOWS ... (and then the chapter ends).
+
+;; (def zet?
+;;   (fn [xs]
+;;     (cond
+;;      (null? xs) true
+;;      :else (and (eqan? (occur (first xs) (rest xs)) 0) (zet? (rest xs))))))
+
+;; His is very similar, except he used member? That is a better choice, so rewriting:
+
+(def zet?
+  (fn [xs]
+    (cond
+     (null? xs) true
+     :else (and (not (member? (first xs) (rest xs))) (zet? (rest xs))))))
+
+;; Then he says simplify zet. I notice, anytime you have an and inside the else of a cond, you can probably simplify it.
+
+(def zet-simplified?
+  (fn [xs]
+    (cond
+     (null? xs) true
+     (member? (first xs) (rest xs)) false
+     :else (zet-simplified? (rest xs)))))
+
+(def makeset
+  (fn [xs]
+    (cond
+     (null? xs) ()
+     :else (cond
+            (member? (first xs) (rest xs)) (makeset (rest xs))
+            :else (cons (first xs) (makeset (rest xs)))))))
+
+(def makeset-with-multirember
+  (fn [xs]
+    (cond
+     (null? xs) ()
+     :else (cons (first xs) (makeset-with-multirember (multirember (first xs) (rest xs)))))))
+
+(def subset?
+  (fn [set1 set2]
+    (cond
+     (null? set1) true
+     :else (and (member? (first set1) set2) (subset? (rest set1) set2)))))
+
+;; Now, he says shorter one, which means move that and condition up.
+
+(def subset-shorter?
+  (fn [set1 set2]
+    (cond
+     (null? set1) true
+     (member? (first set1) set2) (subset? (rest set1) set2)
+     :else false)))
+
+;; Here's one way to write eqset, using rember. But I think there's a better way.
+(def eqset-with-rember?
+  (fn [set1 set2]
+    (cond
+     (null? set1) (null? set2)
+     (member? (first set1) set2) (eqset? (rest set1) (rember (first set1) set2))
+     :else false)))
+
+;; I think this will work out better: Let's rewrite eqset using subset. If they are both subsets of each other, bingo.
+(def eqset-with-subset?
+  (fn [set1 set2]
+    (and (subset? set1 set2) (subset? set2 set1))))
+
+;; sweet!!!
+
+(def intersect?
+  (fn [set1 set2]
+    (cond
+     (null? set1) false
+     :else (or (member? (first set1) set2) (intersect? (rest set1) set2)))))
+
+;; Interesting, intersect? and subset? look sort of like "opposites". Base case changes from true to false. In else clause, and changes
+;;  to or. Are they opposites? One requires every member of set1 to be in set2. One requires only 1 member of set1 to be in set2.
+;;  subset MUST go all the way through set1, whereas intersect can stop at the first match. Subset says "If we got all the way to
+;;  empty list without violations, then return true," whereas intersect says "the minute you find something good, return true, and
+;;  if we get all the way to empty list without finding something good, then return false."
+
+;; NOTE: intersect below has NO QUESTION MARK. This FINDS THE INTERSECTION
+(def intersect
+  (fn [set1 set2]
+    (cond
+     (null? set1) ()
+     (member? (first set1) set2) (cons (first set1) (intersect (rest set1) set2))
+     :else (intersect (rest set1) set2))))
+
+(def union
+  (fn [set1 set2]
+    (cond
+     (null? set2) set1
+     (member? (first set2) set1) (union set1 (rest set2))
+     :else (union (cons (first set2) set1) (rest set2)))))
+
+;; Time to write intersectall. One way I see: Process the first list. Take its first item. If it is in all of the remaining lists,
+;;  include it. Then, recur on rest of the first list. That's it. But that requires a helper fn. Is there a solution that does not?
+;;  What if we use intersect? Intersect the first 2, then that with the next 2, and so on. Yeah, sounds interesting. Still, seems to
+;;  need a helper (or at least an accumulator, which means an overload, which you can consider a helper).
+;;
+;; Huh! It just made me envison reduce! He actually led me into re-inventing reduce without me realizing it up front!!!! Cool!
+;;
+;; So I'm going to do this his way, rather than jump ahead. I'll introduce a helper called member-all?. Takes an atom and a list of
+;;  sets, and tells you whether the atom is in ALL of the sets or not.
+
+(def member-all?
+  (fn [a l-set]
+    (cond
+     (null? l-set) true
+     (member? a (first l-set)) (member-all? a (rest l-set))
+     :else false)))
+
+(def intersectall-missed-a-good-chance
+  (fn [l-set]
+    (cond
+     ;; What are the cases?
+     ;; I'm going to shrink the first list until it is empty, so the base case is that (first l-set) is empty.
+     (null? (first l-set)) ()
+     ;; Each time, check that the first item of the first list is in all the other lists
+     (member-all?
+      (first (first l-set)) (rest l-set)) (
+                                           cons (first (first l-set)) (intersectall-missed-a-good-chance (cons (rest (first l-set)) (rest l-set))))
+      :else (intersectall-missed-a-good-chance (cons (rest (first l-set)) (rest l-set))))))
+
+;; Well the good news is, I successfully wrote a correct impl. But ... his is WAY SHORTER THAN MINE! That's good news too, cuz
+;;  I can learn somethihng!
+
+;; Holy cow! It makes perfect sense! the intersectall is the intersection between the firs list and the intersectall of the rest.
+;; But this hardly seems fair! We haven't DONE anything but STATE THE TRUTH, and SUDDENLY THE SHIT WORKS!
+
+;; Yes! It harkens back to when I said I wanted the intersect of the intersect of the intersect! But I thought I could not do that
+;;  without a helper! But OF COURSE YOU CAN! Just as we "remember" CONSes when we build up lists, by "remembering them on the stack",
+;;  you can do that with intersect or anything else! When you want the foo of the foo of the foo, think RECURSION! It is actually
+;;  pretty much the simplest recursive expression you can have!
+
+;; Let's dewll on this point for a bit, because I missed it, and it really is a key and powerful insight. All book long, I've been
+;;  producing the cons of the cons of the cons of the cons of 5 (). I've been doing it with recursion. So why, when I needed the
+;;  intersect of the intersect of the intersect of (something), why didn't that occur to me? How can I make that occur to me?
+
+;; Well, I wanted to intersect list 1 and list 2, and then take that result and intersect it with list 3, and so on. I even pictured
+;;  the clojure function "iterate". But I didn't think I could do that without a helper or iterator. Something would have to
+;;  "remember" the "intermediate" result that I was working with. But you can almost think of this as like a macro. What do I mean,
+;;  "like a macro"? I mean a series of substitutions. That's all it is. It ultimately produces something concrete and clear.
+;;  For example, building a list ACTUALLY PRODUCES something like this:
+;; (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 ())))))
+;; And interestingly, that is not "how you build the list '(1 2 3 4 5)". It is WHAT THE LIST '(1 2 3 4 5) ACTUALLY IS. "(1 2 3 4 5)" is
+;; merely SHORTHAND.
+
+;; Not only coudl recursion do the thing I wanted ... that pretty much is the EASIEST thing to do with recursion!
+
+;; So "intersectall" is merely the "shell" for repeated calls to intersect! intersectall is the "listified version" of intersect. And
+;;  simply by reading the requirements, you knew that! Well, turns out, you can implement it EXACTLY THAT WAY!
+
+(def intersectall
+  (fn [l-set]
+    (cond
+     (null? (rest l-set)) (first l-set)
+     :else (intersect (first l-set) (intersectall (rest l-set))))))
+
+;; We didn't have to DO anything because we ALREADY HAD a helper called "intersect" that properly calculated the intersect of 2 lists.
+;;  We merely needed to let it "surf a wave" of lists and "do its thang". "Surf a wave of lists and do your thang" is another way of
+;;  saying RECURSION!!!!!!!!!!!
+
+(def a-pair
+  (fn [sexp]
+    (cond
+     (atom? sexp) false
+     (null? sexp) false
+     (null? (rest sexp)) false
+     :else (null? (rest (rest sexp))))))
+
+(def ls-first
+  (fn [pair]
+    (first pair)))
+
+(def ls-second
+  (fn [pair]
+    (first (rest pair))))
+
+(def build
+  (fn [a b]
+    (cons a (cons b ()))))
+
+;; third makes no sense in the context of pairs. So it may be a trick question. But let's write third for a list as 1 liner.
+(def ls-third
+  (fn [xs]
+    (first (rest (rest xs)))))
+
+;; Appears that a relation is a set of pairs.
+;; A function is (from math class) a relation that does not repeat anything in its firsts (function means one to one). So
+;; that means a function is a relation whose firsts are a set.
+
+(def fun?
+  (fn [l-rel]
+    (zet? (firsts l-rel))))
+
+;; How do we represent a finite function? With a relation mapping the input to the output.
+
+(def revrel
+  (fn [l-rel]
+    (cond
+     (null? l-rel) ()
+     :else (cons (cons (first (rest (first l-rel))) (list (first (first l-rel)))) (revrel (rest l-rel))))))
+
+;; Of course! He went ahead and used second and first and build to GREATLY improve readability! Anytime things get hairy in the
+;;  precise manner they did above, look for helper fns!
+
+(def revrel-readable
+  (fn [l-rel]
+    (cond
+     (null? l-rel) ()
+     :else (cons (build (ls-second (first l-rel)) (ls-first (first l-rel))) (revrel-readable (rest l-rel))))))
+
+(def revpair
+  (fn [rel]
+    (build (ls-second rel) (ls-first rel))))
+
+(def revrel-with-revpair
+  (fn [l-rel]
+    (cond
+     (null? l-rel) ()
+     :else (cons (revpair (first l-rel)) (revrel-with-revpair (rest l-rel))))))
+
+;; fullfun means it is a valid fun, and also, the seconds are a set.
+
+(def fullfun
+  (fn [l-rel]
+    (and (fun? l-rel) (zet? (firsts (revrel l-rel))))))
+
+;; So, he wrote a helper called seconds. Then used it. as follows:
+
+(def seconds
+  (fn [rel]
+    (cond
+     (null? rel) ()
+     :else (cons (second (first rel)) (seconds (rest rel))))))
+
+(def fullfun-with-helper
+  (fn [rel]
+    (zet? (seconds (rel)))))
+
+;; Shit damn! He figured out an even shorter way to write fullfun (aka one-to-one). Just revrel it, and see if that's a fn.
+(def one-to-one?
+  (fn [l-rel]
+    (fun? (revrel l-rel))))
