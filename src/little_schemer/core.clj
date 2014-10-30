@@ -1032,3 +1032,357 @@
 (def one-to-one?
   (fn [l-rel]
     (fun? (revrel l-rel))))
+
+;; Chapter 8: Lambda the Ultimate! Sweeeet.
+;;
+;; Review: equal? is like eqan? except that it works on either atoms or lists (aka, "any sexp"). Then, at end of chapter 5,
+;;  we re-wrote rember to use equal? so that it also now works on a list that can contain atoms or lists.
+
+;; From looking back, we didn't appear to revise insertL* at the end of chapter 5, though we DID write InsertL* for the first time
+;;  in around the middle of chapter 5.
+
+;; eq? is the scheme primitive that compares non-numeric atoms for equality. equal? is something we wrote that can handle atoms
+;;  or lists, but still, only for non-numerics.
+
+;; eq? is the scheme primitive that compares non-numeric atoms for equality. equal? is something we wrote that can handle atoms
+;;  or lists, and ALSO, numerics or non-numerics.
+
+;; From looking back, we didn't appear to revise insertL* at the end of chapter 5, though we DID write InsertL* for the first time
+;;  in around the middle of chapter 5.
+;;
+;; OK, I see what he's getting at. He wants rember-f. It is just like rember except that you pass it the fn you want to use for
+;; equality. So you could pass it eq? if you only expected a list of atmos. You could pass equal? if you had a list of sexps.
+
+;; Pretty simple, let's do it.
+
+(def rember-f
+  (fn [f? a xs]
+    (cond
+     (null? xs) ()
+     (f? (first xs) a) (rest xs)
+     :else (cons (first xs) (rember-f f? a (rest xs))))))
+
+(def eq?-c
+  (fn [a]
+    (fn [x]
+      (= x a))))
+
+(def eq?-salad
+  (eq?-c 'salad))
+
+(def rember-f-curry
+  (fn [f?]
+    (fn [a xs]
+      (cond
+       (null? xs) ()
+       (f? (first xs) a) (rest xs)
+       ;; :else (cons (first xs) (rember-f-curry )) ;; Ahh!!!! Tricky! We need to recurse here to our unnamed inner fn!
+       ;; in clojure, I can merely name the inner fn. But that is not what he'd do in scheme, so I won't do it. That way he
+       ;; gets the chance to teach me what he wants to teach me.
+
+       ;; So without using the clojure feature, and without knowing the y combinator he is about to teach me, the only thing
+       ;; I can think of to do is to recurse to rember-f-curry with the same f?, and then call it. Will that work?
+       :else (cons (first xs) ((rember-f-curry f?) a (rest xs)))))))
+
+;; Yes, of course that works. We had to call rember-f-curry AGAIN with the same param it had been called with, in effect to
+;;  "get ourself" again. Too bad we could not use our "self" or "current context" somehow.
+
+(def insertL-f
+  (fn [f?]
+    (fn [new old lat]
+      (cond
+       (null? lat) ()
+       :else (cond
+              (f? (first lat) old) (cons new (cons old (rest lat)))
+              :else (cons (first lat) ((insertL-f f?) new old (rest lat))))))))
+
+(def insertR-f
+  (fn [f?]
+    (fn [new old lat]
+      (cond
+       (null? lat) ()
+       :else (cond
+              (f? (first lat) old) (cons old (cons new (rest lat)))
+              :else (cons (first lat) ((insertR-f f?) new old (rest lat))))))))
+
+;; OK, this is a cool challenge, I'm going to nail it. Can I write insert-g, which is capable of inserting to the right or
+;;  the left.
+;;
+;; Two ways come to mind. First, if they pass in 'left or 'right, I can easily do it. But better, let them pass in a fn.
+;;  The first impl that comes to mind is that they pass me a fn that takes (rest lat). They can then cons new and old in
+;;  whatever order they want. (Hell, they could even do something entirely different).
+
+(def insertG-fn-with-test
+  (fn [f? tfn]
+    (fn [new old lat]
+      (cond
+       (null? lat) ()
+       :else (cond
+              (f? (first lat) old) (tfn new old (rest lat))
+              :else (cons (first lat) ((insertG-fn-with-test f? tfn) new old (rest lat))))))))
+
+;; I'm going with that. To let them pass in 'left or 'right means 2 new hardcoded symbols. There's no value to that over just having
+;;  2 different functions, one with "left" in the name and the other with "right".
+;; So I have earned some coffee cake, but we don't have any!
+
+(def fn-for-subst
+  (fn [new old xs]
+    (cons new xs)))
+
+;; Before going further ... he quit parameterizing the test. So here's insertG-fn with eq hardcoded:
+
+(def insertG-fn
+  (fn [tfn]
+    (fn [new old lat]
+      (cond
+       (null? lat) ()
+       :else (cond
+              (eqan? (first lat) old) (tfn new old (rest lat))
+              :else (cons (first lat) ((insertG-fn tfn) new old (rest lat))))))))
+
+(def subst-with-insertG
+  (fn [new old l]
+    ((insertG-fn fn-for-subst) new old l)))
+
+;; OH BUT WAIT A MINUTE!!! Apparently you CAN do something like point-free style using clojure! See, insertG-fn can be called with
+;;  JUST ONE ARG. And it returns a fn. So subst-with-insertG can merely bind to that fn, rather than being a new fn itself that
+;;  Calls that fn!
+
+(def subst-with-insertG-much-better
+  (insertG-fn fn-for-subst))
+
+;; In his (yyy) (which is rember-with-insertG actually), he passes false for "new". But nothing ever uses new, so false is just a
+;;  placeholder. I'd use _ in that case.
+
+(def atom-to-fn
+  (fn [a]
+    (cond
+     (eqan? a '+) plus
+     (eqan? a '*) mult
+     (eqan? a '%) power
+     :else nil)))
+
+(def value-abstract
+  (fn [aexp]
+    (cond
+     (atom? aexp) aexp
+     :else ((atom-to-fn (operator (aexp))) (first (rest aexp)) (first (rest (rest aexp)))))))
+
+(def value-abstract-with-helpers
+  (fn [aexp]
+    (cond
+     (atom? aexp) aexp
+     :else ((atom-to-fn (operator aexp)) (value-abstract-with-helpers (first-sub-exp aexp)) (value-abstract-with-helpers (second-sub-exp aexp))))))
+
+(def multirember-f
+  (fn [test?]
+    (fn [a lat]
+      (cond
+       (null? lat) ()
+       (test? (first lat) a) ((multirember-f test?) a (rest lat))
+       :else (cons (first lat) ((multirember-f test?) a (rest lat)))))))
+
+;; Cool. Now, he wants to combine the "test" and "a" params. So we'll pass in a predicate.
+
+(def multiremberT
+  (fn [pred?]
+    (fn [lat]
+      (cond
+       (null? lat) ()
+       (pred? (first lat)) ((multiremberT pred?) (rest lat))
+       :else (cons (first lat) ((multiremberT pred?) (rest lat)))))))
+
+;; understanding multirember&co
+;;
+;; col is a fn that takes 2 lists. We have not been given info about what it does with them.
+;; If the element-under-test matches a, then       : (col newlat (cons (first lat) seen))
+;; If the element-under-test does not match a, then: (col (cons (first lat) newlat) seen)
+;;
+;; So, the element-under-test gets consed onto either newlat or seen. newlat if it matches, seen otherwise.
+;;
+;; Here are the calls to coll for 'a '(b a c)
+(multirember&co 'a '(b a c))
+
+;; null? no
+;; eq? 'b 'a? no
+;;
+;;
+(multirember&co 'a '(a c) (fn [newlat seen] (col (cons 'b newlat) seen)))
+;;
+;; Does 'a = 'a? Yes:
+(multirember&co 'a '(c) (fn [newlat seen] (col newlat (cons 'a seen))))
+;;
+;; In this call, a = 'a, lat = '(c)
+;; does 'a = 'c? no
+;;
+(multirember&co 'a () (fn [newlat seen] (col (cons 'c newlat) seen)))
+;;
+;; In this call, a = 'a, lat = ()
+;;
+;; empty? Yes.
+;;
+;; ACTUALLY CALL col! Pass it 2 empty lists:
+
+;; pass () () to (fn [newlat seen] (col (cons 'c newlat) seen))
+;;
+;; newlat = (), seen = ().
+;;
+;; It calls "col", which is the PREVIOUS value of col.
+;;
+;; (col (cons 'c ()) ())
+;;
+;; So pass '(c) and () to: (fn [newlat seen] (col newlat (cons 'a seen)))
+;;
+;; (col '(c) (cons a ()))
+;; Simplifies to
+;; (col '(c) '(a))
+;;
+;; Of course, col here is the "previous previous" version, so...
+;; Pass '(c) '(a) to: (fn [newlat seen] (col (cons 'b newlat) seen))
+;;
+;; (col (cons 'b '(c)) '(a))
+;; simplifies to
+;; (col '(b c) '(a))
+;;
+;; So ultimately, it's going to call the fn I pass in ONE TIME. And it will pass me '(b c) '(a).
+;;
+;; It is telling me what the newlat will be, and the list of things it has seen. I can then return whatever I want, and whatever
+;;  I return will be the result returned from multirember&co. Pretty cool, but hopefully it will get easier to understand.
+;;
+;; "col" stands for COLLECTOR, and Collectors are sometimes referred to as CONTINUATIONS!!!
+
+;; The Tenth Commandment -- I didn't fully get it at first. But now I see. "Build functions to collect more than one value at a time."
+;;  There are TWO KEY parts: "build" -- you're building new functions that use the old ones, and "more than one value at a time"
+;;
+;; If you only needed to collect or build up ONE VALUE, you wouldn't need fns. We've been doing that kind of thing all book long.
+;;  If you need to collect MULTIPLE values, you can "build" up functions to acheive that.
+
+;; multiinsertLR -- If I understand correctly, it expects oldL and oldR to be DIFFERENT. When it finds oldL, it inserts new to the
+;;  left. When it finds oldR, it inserts new to the right.
+;;
+;; Before starting, it doesn't SEEM like I'll need to build fns to collect more than one value. But I suspect he's leading me to need
+;;  that. So let's see what happens.
+
+(def multiinsertLR
+  (fn [oldL oldR new lat]
+    (cond
+     (null? lat) ()
+     (eqan? (first lat) oldL) (cons new (cons oldL (multiinsertLR oldL oldR new (rest lat))))
+     (eqan? (first lat) oldR) (cons oldR (cons new (multiinsertLR oldL oldR new (rest lat))))
+     :else (cons (first lat) (multiinsertLR oldL oldR new (rest lat))))))
+
+;; nailed it.
+
+;; Yes, multiinsertLR&co would need one additional arg, the collection fn. Of course, there are probably all kinds of idioms for
+;;  collectors/continuations that I don't know.
+
+;; He says: "When  multiinsertLR&co is done, it will  use col  on  the  new lat, on  the  number of left
+;; insertions, and  the number of ri ght insertions.  Can you  write an outline of multiinsertLR&co?"
+
+;; I interpret that statement as: "At the very end, multiinsertLR&co will call your collector fn, and when it does, it will pass
+;;  the new lat, the number of left insertions, and the number of right insertions". Surprising to me that we're only capturing
+;;  the NUMBER of left/right insertions, instead of the actual values inserted or their position or something. But those are the
+;;  requirements.
+
+(def multiinsertLR&co
+  (fn [oldL oldR new lat col]
+    (cond
+     (null? lat) (col () 0 0) ;; the base case is 0 0 instead of () (), because the thing we're building up is numbers, not lists
+     (eqan? (first lat) oldL) (multiinsertLR&co oldL oldR new (rest lat)
+                                                (fn [newlat nleft nright]
+                                                  (col (cons new (cons oldL newlat)) (add1 nleft) nright)))
+     (eqan? (first lat) oldR) (multiinsertLR&co oldL oldR new (rest lat)
+                                                (fn [newlat nleft nright]
+                                                  (col (cons oldR (cons new newlat)) nleft (add1 nright))))
+     :else (multiinsertLR&co oldL oldR new (rest lat)
+                             (fn [newlat nleft nright]
+                               (col (cons (first lat) newlat) nleft nright))))))
+
+;; Next up, write "even?" and then use it to write evens-only, which takes a list OF LISTS of numbers, and removes all the odds.
+
+(def ls-even?
+  (fn [a]
+    (cond
+     (zero? a) true
+     :else (not (ls-even? (sub1 a))))))
+
+(def evens-only*
+  (fn [xs]
+    (cond
+     (null? xs) ()
+     (atom? (first xs)) (cond
+                         (ls-even? (first xs)) (cons (first xs) (evens-only* (rest xs)))
+                         :else (evens-only* (rest xs)))
+     :else (cons (evens-only* (first xs)) (evens-only* (rest xs))))))
+
+;; next up! evens-only*&co: "It  builds a nested list of even  numbers  by removing the odd ones from  its  argument
+;; and simultaneously multiplies the even numbers and sums up the odd  numbers  that occur in its  argument.
+
+;; So it only takes 2 params: the list of nested lists and the collector. It removes odds, and it also multiplies evens and sums up
+;;  odds. Pretty easy really. col will take 3 params: newlat, even-product and odd-sum. And doing this is jsut like what we've been
+;;  doing all book, except it builds up multiple values, and therefore it uses a function with multiple params.
+
+(def evens-only*&co
+  (fn [xs col]
+    (cond
+     (null? xs) (col () 1 0)
+     (atom? (first xs)) (cond
+                         (ls-even? (first xs)) (evens-only*&co (rest xs)
+                                                               (fn [newxs ep os]
+                                                                 (col (cons (first xs) newxs) (mult ep (first xs)) os)))
+                         :else (evens-only*&co (rest xs)
+                                               (fn [newxs ep os]
+                                                 (col newxs ep (plus os (first xs))))))
+     :else (evens-only*&co (first xs) (fn [newxs ep os]
+                                        (evens-only*&co (rest xs) (fn [r-newxs r-ep r-os]
+                                                                    (col (cons r-newxs (list newxs)) (mult r-ep ep) (plus r-os os)))))))))
+
+
+     ;; OK, trickiness here!
+     ;; I deliberated on this for a long time.
+     ;; I need to process first, then process rest. But that will get me 2 buckets (assuming I have 2 lists). If I have x lists
+     ;; that will get me x buckets. And I don't see an elegant way to combine multiple collectors (aka buckets) together.
+     ;;
+     ;; Then I realized what we need to do is create 1 bucket, and then use that for first, and then for rest. It all just goes
+     ;;  into 1 bucket. The first answer that pops into my head for that is of course to use a let. But we don't have "let" in this
+     ;;  "Little Schemer" world. However, I happen to know about "let over lambda". So I can make an outer fn that takes a collector,
+     ;;  and call that fn with the one bucket. That fn could then use it to process first and rest. By george, I think it will work.
+     ;;
+     ;; I wrote the following, then decided I don't think that's right. I think I need one call to col, and that one call needs to
+     ;;  join the lists of first and rest. So I'll try that below.
+     ;; :else ((fn [one-bucket]
+     ;;          (evens-only*&co (first xs) one-bucket)
+     ;;          (evens-only*&co (rest xs) one-bucket)) (fn [newxs ep os]
+     ;;                                                   (col newxs ep os))))))
+     ;;
+     ;; So, can my else clause consist only of a call to col, with the properly combined results?
+     ;;
+     ;; :else (col (evens-only*&co (first xs) ???) )
+     ;;
+     ;; But I don't know where to go with this. Now I think I need let over lambda with 3 params:
+;;      :else ((fn [newxs ep os lcol]
+;;               (evens-only*&co (first xs) lcol)
+;;               (evens-only*&co (rest xs) lcol)) () 1 0 (fn [o-newxs o-ep o-os]
+;;                                                         (col (cons o-newxs (list newxs)) (mult o-ep ep) (plus o-os os)))))))
+
+;; ;;
+;; Now that's the best I got so far, but I'm pretty sure something's not right. Why did I have to essentially "manually" make my
+;;  own 3 "local variables" to do the collecting, when the collector/continuation idiom should do it for me? Even if this works, I
+;;  have most likely worked too hard. So there will be something excellent to learn when I read on.
+;;
+     ;; :else ((fn [newxs ep os]
+     ;;          (println "newxs: " newxs " ep: " ep )
+     ;;          (evens-only*&co (first xs) (fn [o-newxs o-ep o-os]
+     ;;                                       (col (cons o-newxs (list newxs)) (mult o-ep ep) (plus o-os os))))
+     ;;          (evens-only*&co (rest xs) (fn [o-newxs o-ep o-os]
+     ;;                                      (col (cons o-newxs (list newxs)) (mult o-ep ep) (plus o-os os)))) () 1 0)))))
+
+;; OK, 2 things here: (1) It is not working, tells me I sent zero args to evens-only*&co, but I don't see where. (2) When a single
+;;  list is processed by evens-only*&co, it returns a list. So why can't I cons the results -- AHA! That's incorrect! When a single
+;;  list is processed by evens-only*&co, it RETURNS WHATEVER COL RETURNS! For one thing, it is THREE VALUES (a triple), not a list.
+;;  For another thing, that triple is not RETURNED. That triple is PASSED TO THE COL FUNCTION.
+;;
+;; THIS IS WHERE THE FACT THAT IT IS A CONTINUATION COMES INTO PLAY!!! It will process the list and then CALL ME WHEN IT IS DONE.
+;; So how can I make use of that? Perhaps the continuation ITSELF is where we can process the rest of the list? And if we do,
+;;  we can merely use the STACK to "combine" the items. YES! Let's see where that gets us.
+;;
