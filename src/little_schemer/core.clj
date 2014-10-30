@@ -1381,6 +1381,12 @@
 ;; So how can I make use of that? Perhaps the continuation ITSELF is where we can process the rest of the list? And if we do,
 ;;  we can merely use the STACK to "combine" the items. YES! Let's see where that gets us.
 ;;
-     :else (evens-only*&co (first xs) (fn [newxs ep os]
-                                        (evens-only*&co (rest xs) (fn [r-newxs r-ep r-os]
-                                                                    (col (cons r-newxs (list newxs)) (mult r-ep ep) (plus r-os os)))))))))
+     :else (evens-only*&co (first xs)
+                           (fn [newxs ep os]
+                             (evens-only*&co (rest xs) (fn [r-newxs r-ep r-os]
+                                                         (col (cons newxs r-newxs) (mult r-ep ep) (plus r-os os)))))))))
+;; WHOO HOO! WOOT! It is WORKING!
+;; I haven't looked at his solution yet, but this is GIVING ME CORRECT RESULTS!
+;;
+;; The key seems to have been to use the continuation for recurrence. That gave me the "starting bucket variables", so no need for
+;;  let over lambda.
