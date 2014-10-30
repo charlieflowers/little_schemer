@@ -1393,3 +1393,10 @@
 ;;  That enabled me to process the rest of the list INSIDE THE CONTINUATION, and it gave me one lexical scope where I could collect
 ;;  everything into one set of variables. That made it convenient to fulfill my final obligation, which was passing the variables
 ;;  that had collected everything to the original caller's "col" fn.
+
+;; Note: the author seriously glossed over how difficult it was to come up with the right answer. If I was merely reading, I'd feel
+;;  smug and confident about my knowledge! (Dunning Kruger at its best). I wish he had spent more time explaining ... but still, you
+;;  cannot learn something if you don't first know your own ignorance about it! That's why exercises / tests / challenges / building
+;;  real systems is VITAL. You need REALITY to tell you whether or not you really know something! If I don't test my own knowledge
+;;  when I learn something new, then I'm going to get the bad results that come from THINKING I know something but finding out
+;;  the hard way that I don't! Anytime you learn something new, PROVE IT! And the more complex it is, the greater the required proof!
