@@ -1400,3 +1400,48 @@
 ;;  real systems is VITAL. You need REALITY to tell you whether or not you really know something! If I don't test my own knowledge
 ;;  when I learn something new, then I'm going to get the bad results that come from THINKING I know something but finding out
 ;;  the hard way that I don't! Anytime you learn something new, PROVE IT! And the more complex it is, the greater the required proof!
+
+;; Looking again at evens-only*&co, you NEVER call the collector from anywhere other than INSIDE THE COLLECTOR, EXCEPT FOR ONE case:
+;;  you call the collector from the base case.
+
+;; *********************** CHAPTER 9
+;;
+
+(def looking
+  (fn [a lat]
+    ((fn cheating-with-clojure [a index lat orig-lat]
+       (cond
+        (null? lat) false
+        (one? index) (cond
+                      (number? (first lat)) (cheating-with-clojure a (first lat) orig-lat orig-lat)
+                      :else (eqan? (first lat) a))
+        :else (cheating-with-clojure a (sub1 index) (rest lat) orig-lat)) ;; I need to recur on my lambda. Clojure lets me name it.
+       ) a 1 lat lat))) ;;                                                  Scheme does not let me do that (hence "cheating")
+
+(def his-looking
+  (fn [a lat]
+    (keep-looking a (pick 1 lat) lat)))
+
+(def keep-looking
+  (fn [a the-value lat]
+    (cond
+     (number? the-value) (keep-looking a (pick the-value lat) lat)
+     :else (eqan? the-value a))))
+
+;; His is more elegant than mine because (1) he used a helper fn "pick", and (2) he therefore was able to pass the whole list around
+;;  at all times.
+
+;; NICE! Not only did I write my own (a bit clumsy) looking , I also wrote keep-looking when he first asked, which he then said
+;;  HE DID NOT EXPECT ME TO KNOW!
+
+;; Couple notes:
+;; (1) he uses "sorn" to stand for symbol or number
+;; (2) keep-looking is an example of UNNATURAL RECURSION. It does NOT recur on the list. It can do that because: (a) the helper does
+;;  some recurringn on the list for us, and (b) the original requirements require us to start back with the whole list from time to \
+;;  time.
+
+;; He points out that, because keep-looking usses unnatural recursion, IT MIGHT NOT EVER STOP! If one index points to another index
+;;  which points back to the first index, then INFINITE LOOP, stack overflow.
+;;
+;; "TOTAL FUNCTIONS" -- they are valid for any inputs
+;; "PARTIAL FUNCTIONS" -- (NOT "partial application") -- not valid for all inputs.
