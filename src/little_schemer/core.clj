@@ -1389,4 +1389,7 @@
 ;; I haven't looked at his solution yet, but this is GIVING ME CORRECT RESULTS!
 ;;
 ;; The key seems to have been to use the continuation for recurrence. That gave me the "starting bucket variables", so no need for
-;;  let over lambda.
+;;  let over lambda. Rather than relying on what each call to evens-only*&co RETURNED, I relied on WHAT IT PASSED TO MY CONTINUATION.
+;;  That enabled me to process the rest of the list INSIDE THE CONTINUATION, and it gave me one lexical scope where I could collect
+;;  everything into one set of variables. That made it convenient to fulfill my final obligation, which was passing the variables
+;;  that had collected everything to the original caller's "col" fn.
