@@ -1333,11 +1333,6 @@
                          :else (evens-only*&co (rest xs)
                                                (fn [newxs ep os]
                                                  (col newxs ep (plus os (first xs))))))
-     :else (evens-only*&co (first xs) (fn [newxs ep os]
-                                        (evens-only*&co (rest xs) (fn [r-newxs r-ep r-os]
-                                                                    (col (cons r-newxs (list newxs)) (mult r-ep ep) (plus r-os os)))))))))
-
-
      ;; OK, trickiness here!
      ;; I deliberated on this for a long time.
      ;; I need to process first, then process rest. But that will get me 2 buckets (assuming I have 2 lists). If I have x lists
@@ -1386,3 +1381,6 @@
 ;; So how can I make use of that? Perhaps the continuation ITSELF is where we can process the rest of the list? And if we do,
 ;;  we can merely use the STACK to "combine" the items. YES! Let's see where that gets us.
 ;;
+     :else (evens-only*&co (first xs) (fn [newxs ep os]
+                                        (evens-only*&co (rest xs) (fn [r-newxs r-ep r-os]
+                                                                    (col (cons r-newxs (list newxs)) (mult r-ep ep) (plus r-os os)))))))))
