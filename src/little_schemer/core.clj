@@ -1445,3 +1445,40 @@
 ;;
 ;; "TOTAL FUNCTIONS" -- they are valid for any inputs
 ;; "PARTIAL FUNCTIONS" -- (NOT "partial application") -- not valid for all inputs.
+
+;; What is the most unnatural recursion possible?
+(def eternity
+  (fn [x]
+    (eternity x)))
+;;
+;; It is "as unnatural as possible" because it never makes any progress towards a base case. It is the "most partial function" possible
+
+;; shift:
+;; "The function shift  takes a pair whose first component is a pair and builds a pair by
+;; shifting the second part of the first component into the second component."
+(def shift
+  (fn [outer-pair]
+    (build (ls-first (ls-first outer-pair)) (build (ls-second (ls-first outer-pair)) (ls-second outer-pair)))))
+
+;; (def atoms-in-pair
+;;   (fn [pair]
+;;     (cond
+;;      (atom? (ls-first pair)) (cond
+;;                               (atom? (ls-second pair)) 2
+;;                               :else (add1 (atoms-in-pair (ls-second pair))))
+;;      :else (plus (atoms-in-pair (ls-first pair)) (atoms-in-pair (ls-second pair)))))))
+
+(def atoms-in-pair
+  (fn [x]
+    (cond
+     (nil? x) 0
+     (atom? x) 1
+     :else (plus (atoms-in-pair (ls-first x)) (atoms-in-pair (ls-second x))))))
+
+;; I honestly have no idea what the fuck he is talking about with align and weight. He asks "is align a partial fn?" then answers
+;; "we don't know. it looks like there might be some args it would go forever on." I'm totally with him that far. Then he says
+;;  there's this fn called weight which pays double attention to the first component of align's args. Why double? What is so special
+;;  about the first arg anyway?
+;;
+;; Then, after merely talking about this idea for a weight fn, he asks again if align is partial, and says no, as if suddenly we know
+;;  the answer. WTF?
