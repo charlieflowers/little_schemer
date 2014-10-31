@@ -1,5 +1,5 @@
 (ns little-schemer.core
-  (:gen-class))
+ (:gen-class))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -1201,21 +1201,21 @@
 ;; So, the element-under-test gets consed onto either newlat or seen. newlat if it matches, seen otherwise.
 ;;
 ;; Here are the calls to coll for 'a '(b a c)
-(multirember&co 'a '(b a c))
+;; (multirember&co 'a '(b a c))
 
 ;; null? no
 ;; eq? 'b 'a? no
 ;;
 ;;
-(multirember&co 'a '(a c) (fn [newlat seen] (col (cons 'b newlat) seen)))
+;; (multirember&co 'a '(a c) (fn [newlat seen] (col (cons 'b newlat) seen)))
 ;;
 ;; Does 'a = 'a? Yes:
-(multirember&co 'a '(c) (fn [newlat seen] (col newlat (cons 'a seen))))
+;; (multirember&co 'a '(c) (fn [newlat seen] (col newlat (cons 'a seen))))
 ;;
 ;; In this call, a = 'a, lat = '(c)
 ;; does 'a = 'c? no
 ;;
-(multirember&co 'a () (fn [newlat seen] (col (cons 'c newlat) seen)))
+;; (multirember&co 'a () (fn [newlat seen] (col (cons 'c newlat) seen)))
 ;;
 ;; In this call, a = 'a, lat = ()
 ;;
@@ -1482,3 +1482,194 @@
 ;;
 ;; Then, after merely talking about this idea for a weight fn, he asks again if align is partial, and says no, as if suddenly we know
 ;;  the answer. WTF?
+
+;; I can see that the args to align get simpler each time it recurses. And eventually (first pora) will not be a pair. Then we'll hit
+;;  the else clause, and we'll do a (build (first pora) (align (second pora))). And that means the second member of the pair will
+;;  undergo the same process. So from that standpoint, I can buy that align does not recur forever. Why didn't he say that?
+
+(def will-stop?  ;; Will the fn f stop, when passed ()
+  (fn [f]
+    ))
+
+;; How could this possibly be done? You'd have to know something about the internals of the fn, or hook into it to see something
+;;  about how it behaves. Perhaps we could "hijack" the function, so that it calls us each time instead of itself. Then, we "analyze",
+;;  and then we call it so as to not break the recursion. Still, whose to say there's not some pattern which appears to be getting
+;;  simpler, only to jump back up at the end? (sub1 x), coupled with (if (= x 2) (recur on 1000)). Without knowing the fn itself,
+;;  you simply cannot tell.
+
+;; I think he is coding up Godel's incompleteness theorum with will-stop? and last-try.
+
+;; Now, he's addressing the problem: What if you could not name a fn? You would no longer be able to recur, because you would have
+;;  no way to call yourself.
+
+((fn [length]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1 (length (rest l))))))
+ eternity)
+
+;; The above is from the book. I need to dissect it. We define a fn, and call it with "eternity". DON'T GET CONFUSED -- WE ARE CALLING
+;;  THE *OUTER* FN! So we're binding "length" to the function "eternity". The RETURN VALUE is a new function that calls eternity
+;;  instead of recurring. So that fn is length0, because it only works for lists with length of 0, and has an infinite loop
+;;  otherwise.
+
+;; Now, rewrite length<=1 in same style. But first, let me write length<=1 the long way.
+
+(def length<=1-long-way
+  (fn [l]
+    (cond
+     (null? l) 0
+     :else (add1 (
+                  (fn [l]
+                    (cond
+                     (null? l) 0
+                     :else (add1 (eternity (rest l))))) ;; So far, I don't see why we do add1 and rest. We're just blowing up.
+                  (rest l)
+                  )
+))))
+
+;; Now, let's rewrite length<=1 using that style above.
+(def length<=1-still-not-all-the-way
+  (fn [l]
+    (
+     (fn [l-fn]
+       (cond
+        (null? l) 0
+        :else (add1 (l-fn (rest l)))))
+     (fn [l2]
+       (cond
+        (null? l2) 0
+        :else (add1 (eternity (rest l2))))))
+    ))
+
+;; That's all well and good, but we want not to even use "define". So let me write it that way.
+((fn [l-fn]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1 (l-fn (rest l)))))
+   )(fn [l2]
+     (cond
+      (null? l2) 0
+      :else (add1 (eternity (rest l)))))
+ )
+
+;; Even still, he did something slightly different. He repeated that helper fn twice. So let me do that.
+((fn [l-fn]
+   (fn [l]
+      (cond
+       (null? l) 0
+       :else (add1 (l-fn (rest l)))))
+   ) ((fn [g-fn]
+      (fn [l]
+        (cond
+         (null? l) 0
+         :else (add1 (g-fn (rest l))))))
+    eternity))
+
+;; That is exactly what he's doing. Now, let's do length<=2
+((fn [h-fn]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1 (h-fn (rest l))))))
+((fn [l-fn]
+   (fn [l]
+      (cond
+       (null? l) 0
+       :else (add1 (l-fn (rest l)))))
+   ) ((fn [g-fn]
+      (fn [l]
+        (cond
+         (null? l) 0
+         :else (add1 (g-fn (rest l))))))
+    eternity)))
+
+;; OK, on page 163 his words get confusing. He says to "name the function that makes a fn that looks like length". What he means,
+;;  though, is NOT to name the fn. We cannot name fns, because we are working without "define". He means to NAME THE PARAMETER
+;;  THAT HOLDS THE FUNCTION. In other words, he doesn't like those h-fn, l-fn and g-fn names in my example, and likewise he
+;;  doesn't like the name "length" or "f" and "g" in his implementations.
+
+;; That's ALL he SAYS. But then he DOES a HELLUVA LOT MORE THAN THAT. He also realizes that mk-length could call ITSELF over and over.
+;;  Why in God's name he would not explicitly say that to me since he's trying to teach me, I don't know. But I did notice earlier
+;;  that each "copy/paste" of mk-length was very similar. Still, I need to prove to myself that recurring on mk-length makes sense
+;;  and does what we want.
+
+;; No, wait, that is not exactly what he is doing. He REALLY DOES want to name the function. So he uses "let-over-lambda". He wraps
+;;  everything we already have in a lambda that takes one argument and names that arg mk-length. That lets him call it over and over.
+;;  He's simply using let-over-lambda to name a fn even though we don't have "define".
+
+;; Let me do that to length0:
+
+(                                               ;; Line 1
+(fn [mk-length]                                 ;; Line 2
+  (mk-length eternity))                         ;; Line 3
+(fn [length]                                    ;; Line 4
+   (fn [l]                                      ;; Line 5
+     (cond                                      ;; Line 6
+      (null? l) 0                               ;; Line 7
+      :else (add1 (length (rest l)))))))        ;; Line 8
+;; Let's dwell on this a bit. I've numbered the lines for discussion.
+;; Lines 4-8 are the "helper" fn that is core to what we're doing now. We wanted to name it, so we introduced lines 1-3. Lines 1-3
+;;  assign the name "mk-length" to the fn defined on line 4. Since we now have a name, it is possible for recursion to be used.
+;;
+;; Don't be confused though: the only reason the fn on line 4 is named "mk-length" is that we passed the fn on line 4 as a parameter
+;;  to the fn on line 2. Straight up "let over lambda".
+;;
+;; But WAIT! Lines 1-2 also do ONE MORE THING. Not only do they assign the name "mk-length" to the fn defined on line 4. They also
+;;  CALL that fn, passing "eternity" to it. So the entire code block (lines 1-8) actaully return Length0 (and testing confirms
+;;  this).
+;;
+;; Now, what he's saying is that, since we have named the pattern, a lot of our ugly repetition can go away. He claims that this
+;; is length<=1:
+((fn [mk-length]
+   (mk-length                   ;; See right here, he calls mk-length twice (calls it on itself).
+    (mk-length eternity)))
+ (fn [length]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1 (length (rest l)))))))
+
+;;
+;; I think the key claim there is that, my helper fn (defined on Line 4 of the numbered example earlier), can be called on itself.
+;; You can pass a value to "length-fn" that IS length-fn. If we hadn't named it, we'd have to repeat its definition (which is exactly
+;;  what we did earlier with length0, length<=1 and length<=2). We simply named the pattern we wanted to repeat, and now we're using
+;;  the name. That's really all we're doing.
+
+;; And therefore, here's length<=2:
+((fn [mk-length]
+   (mk-length (mk-length (mk-length eternity))))
+ (fn [length]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1 (length (rest l)))))))
+
+;; And here's length<=3:
+((fn [mk-length]
+   (mk-length (mk-length (mk-length (mk-length eternity)))))
+ (fn [length]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1 (length (rest l)))))))
+
+;; Alright. He is saying, if we had an infinite tower of these, we could handle any list. In fact, in practicality, we don't need an
+;;  *infinite* tower ... we just need one long enough for the current list were being asked about. He then says, what if we could
+;; take a guess. If the list is shorter or equal to our guess, great! If we guess low, then we're screwed. But what if, in addition
+;;  to guessing, we could ALSO find out we guessed too low, and do a "just-in-time" increase of our guess? The idea is that
+;;  we don't pass "eternity" to mk-length at first. Instead, we pass "mk-length" itself to mk-length. We'd get back a fn that
+;;  still takes 1 param called "mk-length". After calling what we passed in, it would then call the param we passed, which is
+;;  mk-length. So we could pass "eternity" to THAT. In other words, pass eternity to the outer mk-length, which then calls the inner
+;;  mk-length. This would create a stack of mk-length calls that would eventually unravel to "eternity".
+
+;; I don't totally follow him to the next step, however. He simply takes length0 as we wrote above, and replaces "eternity" with
+;;  mk-length. And he claims that it is STILL length0. OHHH, I GET IT! Of COURSE it is still length0. It doesn't matter if you
+;;  call eternity, or (iterate true), or whatever the hell you want! You're entering an infinite loop however you please. Well, we
+;;  desire our infinite loop to be calling mk-length over and over and over. So the fn will still blow up if length is > 1, and for
+;;  lengths of 1 or 0 it will work just fine. GOT IT.
+
+;; Then, he says, "let's rename the param from 'length' to 'mk-length' just to remind ourselves that we're passing mk-length to
+;;  mk-length." Cool, no worries.
