@@ -1673,3 +1673,141 @@
 
 ;; Then, he says, "let's rename the param from 'length' to 'mk-length' just to remind ourselves that we're passing mk-length to
 ;;  mk-length." Cool, no worries.
+
+;; OK, I get it. Once you get past all your hardcoded repeated calls to mk-length (the ones that look like this:)
+;;    (mk-length (mk-length (mk-length mk-length)))
+;; you then call eternity. Of course, this causes a stackoverflow. The whole goal is to "guess high enough" that you never hit the
+;;  stack overflow.
+;;
+;; THEN, he makes the next jump: YOU NEVER CALL ETERNITY AT ALL. Right at the point you would have called eternity, merely call
+;;  mk-length again instead. Call it on the (rest ) of the list, and add1 to it. You are indeed setting up infinite recursion, except
+;;  that earlier in the recursion, you set up an "exit strategy". You will eventually hit zero and bottom out.
+;;
+;; Here's his implementation of mk-length:
+
+((fn [mk-length]
+   (mk-length mk-length))
+ (fn [mk-length]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1
+             ((mk-length mk-length)
+              (rest l)))))))
+
+;; So, I think the y-combinator (which he is leading up to) comes down to these few principles:
+;; 1. It is ok to call yourself in what superfically appears to be infinite recursion if you have a base case that stops the recursion.
+;; 2. Calling yourself is hard when you cannot name yourself.
+;; 3. But you can find a pattern for calling yourself using let over lambda.
+;;
+;; Let me see if I can use those principles to work out the definition for any-num? anynum? is a fn which tells you if any of the
+;;  members of a list of atoms is a number.
+
+;; First, here's the version using "def"
+(def any-num-using-def?
+  (fn [lat]
+    (cond
+     (null? lat) false
+     (number? (first lat)) true
+     :else (any-num-using-def? (rest lat)))))
+
+;; Now, I don't have def. I need to return a fn that does the job. So I will have a fn that returns it:
+
+(fn []
+  (fn [lat]
+    (cond
+     (null? lat) false
+     (number? (first lat)) true
+     :else (what-to-put-here? (rest lat))))) ;; See, when it comes time to recur, I don't yet know what to put. Other than that, good.
+
+;; In order to be able to put something there that would recur, I need to name that inner fn via let-over-lambda. Like this:
+((fn [the-inner-fn-that-needs-name]
+   (identity the-inner-fn-that-needs-name) ;; some parameters here)
+  )
+   (fn [lat]
+     (cond
+      (null? lat) false
+      (number? (first lat)) true
+      :else (the-inner-fn-that-needs-name (rest lat)))))
+
+;; Hmmm, this is totally different from what he did, but looks like it might work. If not, I need to understand why not.
+;; Well, I see why not ... but the idea may still be sound. Even though I used let-over-lambda to name the inner fn, that name
+;;  is not in scope where I need to call it. How was that not a problem in his appraoch?
+
+;; AHH, I SEE. He DID NOT name that inner fn. He named the OUTER fn that wraps the inner fn. That fn takes a fn to call when
+;;  recursion occurs. Let me try that:
+
+((fn [what-to-call-when-you-recur]
+   (what-to-call-when-you-recur what-to-call-when-you-recur))
+ (fn [lat]
+   (cond
+    (null? lat) false
+    (number? (first lat)) true
+    :else ((what-to-call-when-you-recur what-to-call-when-you-recur) (rest lat)))))
+
+;; No, that still won't compile, for the same reason. what-to-call-when-you-recur is STILL not in scope.
+;;
+;; A THIRD FN is needed! I have been trying with 2 fns so far: the inner one that actually checks for numbers, and the outer one
+;;  which serves as the let-over-lambda.
+;;
+;; I need a THIRD fn, which "makes" the fn that does the work. So here's how the 3 fn's I need break down:
+;; (1) I need the fn which does the work.
+;; (2) I need a "maker fn". It makes and returns the fn that does the work.
+;; (3) I need to NAME the "maker fn". To do that, I use let-over-lambda, which means I must introduce the 3rd fn and call it. (what
+;;   the javascript world used to call an "immediately executing fn").
+
+;; So, here goes:
+
+((fn [maker] ;; let-over-lambda fn
+   (maker))
+ (fn [] ;; this is the maker
+   (fn [lat] ;; worker fn
+     (cond
+      (null? lat) false
+      (number? (first lat)) true
+      :else ?????)))) ;; What to put here for the recursion???
+
+;; Now, we're on the right track. You need the maker because you're going to make a new one over and over again till you get the
+;;  answer you need. You need the worker to do the work (duh). You need the outer for let-over-lambda (merely to assign a name
+;;  to maker).
+
+;; Now, the ???? indicates we don't know what to put for the recursion! Well, we want to call maker again
+;;  to make a new fn that we will recurse on. That will
+;;  "make" a new worker fn for us. And when that new worker fn recurses, we want IT to call maker. This means that when it comes
+;;  time to recurse, we're going to call maker, and pass maker. Let's do it:
+
+((fn [maker]
+   (maker))
+ (fn []
+   (fn [lat]
+     (cond
+      (null? lat) false
+      (number? (first lat)) true
+      :else ((maker) (rest lat)))))) ;; Read Carefully! We call maker, and maker returns a fn. We then call THAT fn with (rest lat)
+;;
+;; There is ONE REMAINING PROBLEM. We can't call maker in the else clause, because maker is not in scope. We get it into scope by
+;;  passing it in as a parameter, and propogating that on any subsequent calls to maker too. Like this:
+(
+((fn [maker]
+   (maker maker))          ;; Change # 1: pass maker, so that the inner fn can call it.
+ (fn [maker]               ;; Change # 2: accept maker as an arg
+   (fn [lat]
+     (cond
+      (null? lat) false
+      (number? (first lat)) true
+      :else ((maker maker) (rest lat)))))) ;; Change 3: when we call maker to recur, pass maker to it.
+'(a s d f g h j k l 42))
+;; So, does the above work as an impl of any-number? YES IT DOES!!!
+
+;; So perhaps this is really just another use of continuations! When it is time to recur, you call the fn I give you, and I will
+;;  give you something just like yourself. I don't know whether it is continuations or not.
+
+;; But the heart of the pattern seems to be the maker. It makes a worker that recurs by calling maker again. Thereby, it pretty much
+;;  "calls itself" without being able to name itself. This is clearly heavy duty use of first-class functions.
+
+;; Another aha -- essentially, the y-combinator is not much different from a lazy sequence. It is defined in such a way that it
+;;  recurs forever, but it ends up only doing as much as you pull from it. So as long as you ask it a finite question, it gives
+;;  you a finite answer. In this case, the "lazy" part is the next call to "maker", which only happens if you really need it.
+;;  This kind of thing helps illustrate why a Haskell fn defined one way succeeds against an infinite list, but fails when slightly
+;;  tweaked and applied to an infinite list. Is the "infinite part" totally encapsulated in the "lazy part"? If so, you're good to
+;;  go. If not you're screwed.
