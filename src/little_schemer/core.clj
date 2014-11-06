@@ -614,7 +614,7 @@
     (cond
      (atom? sexp) (or (number? sexp) (valid-operators sexp))
      (null? sexp) true
-     :else (and (charlie-numbered? (first sexp)) (numbered? (rest sexp))))))
+     :else (and (charlie-numbered? (first sexp)) (charlie-numbered? (rest sexp))))))
 
 ;; After writing the above and looking at his answer, I see he has more requirements that he did not mention. He is actually
 ;;  looking at the second member of the sexp and expecting it to be an operator. So everything is gets is of the form
@@ -845,7 +845,7 @@
   (fn [set1 set2]
     (cond
      (null? set1) (null? set2)
-     (member? (first set1) set2) (eqset? (rest set1) (rember (first set1) set2))
+     (member? (first set1) set2) (eqset-with-rember? (rest set1) (rember (first set1) set2))
      :else false)))
 
 ;; I think this will work out better: Let's rewrite eqset using subset. If they are both subsets of each other, bingo.
@@ -1418,15 +1418,16 @@
         :else (cheating-with-clojure a (sub1 index) (rest lat) orig-lat)) ;; I need to recur on my lambda. Clojure lets me name it.
        ) a 1 lat lat))) ;;                                                  Scheme does not let me do that (hence "cheating")
 
-(def his-looking
-  (fn [a lat]
-    (keep-looking a (pick 1 lat) lat)))
-
 (def keep-looking
   (fn [a the-value lat]
     (cond
      (number? the-value) (keep-looking a (pick the-value lat) lat)
      :else (eqan? the-value a))))
+
+(def his-looking
+  (fn [a lat]
+    (keep-looking a (pick 1 lat) lat)))
+
 
 ;; His is more elegant than mine because (1) he used a helper fn "pick", and (2) he therefore was able to pass the whole list around
 ;;  at all times.
@@ -1544,16 +1545,16 @@
     ))
 
 ;; That's all well and good, but we want not to even use "define". So let me write it that way.
-((fn [l-fn]
-   (fn [l]
-     (cond
-      (null? l) 0
-      :else (add1 (l-fn (rest l)))))
-   )(fn [l2]
-     (cond
-      (null? l2) 0
-      :else (add1 (eternity (rest l)))))
- )
+;; ((fn [l-fn]
+;;    (fn [l]
+;;      (cond
+;;       (null? l) 0
+;;       :else (add1 (l-fn (rest l)))))
+;;    )(fn [l2]
+;;      (cond
+;;       (null? l2) 0
+;;       :else (add1 (eternity (rest l)))))
+;;  )
 
 ;; Even still, he did something slightly different. He repeated that helper fn twice. So let me do that.
 ((fn [l-fn]
@@ -1685,15 +1686,15 @@
 ;;
 ;; Here's his implementation of mk-length:
 
-((fn [mk-length]
-   (mk-length mk-length))
- (fn [mk-length]
-   (fn [l]
-     (cond
-      (null? l) 0
-      :else (add1
-             ((mk-length mk-length)
-              (rest l)))))))
+;; ((fn [mk-length]
+;;    (mk-length mk-length))
+;;  (fn [mk-length]
+;;    (fn [l]
+;;      (cond
+;;       (null? l) 0
+;;       :else (add1
+;;              ((mk-length mk-length)
+;;               (rest l)))))))
 
 ;; So, I think the y-combinator (which he is leading up to) comes down to these few principles:
 ;; 1. It is ok to call yourself in what superfically appears to be infinite recursion if you have a base case that stops the recursion.
@@ -1704,31 +1705,31 @@
 ;;  members of a list of atoms is a number.
 
 ;; First, here's the version using "def"
-(def any-num-using-def?
-  (fn [lat]
-    (cond
-     (null? lat) false
-     (number? (first lat)) true
-     :else (any-num-using-def? (rest lat)))))
+;; (def any-num-using-def?
+;;   (fn [lat]
+;;     (cond
+;;      (null? lat) false
+;;      (number? (first lat)) true
+;;      :else (any-num-using-def? (rest lat)))))
 
 ;; Now, I don't have def. I need to return a fn that does the job. So I will have a fn that returns it:
 
-(fn []
-  (fn [lat]
-    (cond
-     (null? lat) false
-     (number? (first lat)) true
-     :else (what-to-put-here? (rest lat))))) ;; See, when it comes time to recur, I don't yet know what to put. Other than that, good.
+;; (fn []
+;;   (fn [lat]
+;;     (cond
+;;      (null? lat) false
+;;      (number? (first lat)) true
+;;      :else (what-to-put-here? (rest lat))))) ;; See, when it comes time to recur, I don't yet know what to put. Other than that, good.
 
 ;; In order to be able to put something there that would recur, I need to name that inner fn via let-over-lambda. Like this:
-((fn [the-inner-fn-that-needs-name]
-   (identity the-inner-fn-that-needs-name) ;; some parameters here)
-  )
-   (fn [lat]
-     (cond
-      (null? lat) false
-      (number? (first lat)) true
-      :else (the-inner-fn-that-needs-name (rest lat)))))
+;; ((fn [the-inner-fn-that-needs-name]
+;;    (identity the-inner-fn-that-needs-name) ;; some parameters here)
+;;   )
+;;    (fn [lat]
+;;      (cond
+;;       (null? lat) false
+;;       (number? (first lat)) true
+;;       :else (the-inner-fn-that-needs-name (rest lat)))))
 
 ;; Hmmm, this is totally different from what he did, but looks like it might work. If not, I need to understand why not.
 ;; Well, I see why not ... but the idea may still be sound. Even though I used let-over-lambda to name the inner fn, that name
@@ -1737,13 +1738,13 @@
 ;; AHH, I SEE. He DID NOT name that inner fn. He named the OUTER fn that wraps the inner fn. That fn takes a fn to call when
 ;;  recursion occurs. Let me try that:
 
-((fn [what-to-call-when-you-recur]
-   (what-to-call-when-you-recur what-to-call-when-you-recur))
- (fn [lat]
-   (cond
-    (null? lat) false
-    (number? (first lat)) true
-    :else ((what-to-call-when-you-recur what-to-call-when-you-recur) (rest lat)))))
+;; ((fn [what-to-call-when-you-recur]
+;;    (what-to-call-when-you-recur what-to-call-when-you-recur))
+;;  (fn [lat]
+;;    (cond
+;;     (null? lat) false
+;;     (number? (first lat)) true
+;;     :else ((what-to-call-when-you-recur what-to-call-when-you-recur) (rest lat)))))
 
 ;; No, that still won't compile, for the same reason. what-to-call-when-you-recur is STILL not in scope.
 ;;
@@ -1758,14 +1759,14 @@
 
 ;; So, here goes:
 
-((fn [maker] ;; let-over-lambda fn
-   (maker))
- (fn [] ;; this is the maker
-   (fn [lat] ;; worker fn
-     (cond
-      (null? lat) false
-      (number? (first lat)) true
-      :else ?????)))) ;; What to put here for the recursion???
+;; ((fn [maker] ;; let-over-lambda fn
+;;    (maker))
+;;  (fn [] ;; this is the maker
+;;    (fn [lat] ;; worker fn
+;;      (cond
+;;       (null? lat) false
+;;       (number? (first lat)) true
+;;       :else ?????)))) ;; What to put here for the recursion???
 
 ;; Now, we're on the right track. You need the maker because you're going to make a new one over and over again till you get the
 ;;  answer you need. You need the worker to do the work (duh). You need the outer for let-over-lambda (merely to assign a name
@@ -1776,27 +1777,27 @@
 ;;  "make" a new worker fn for us. And when that new worker fn recurses, we want IT to call maker. This means that when it comes
 ;;  time to recurse, we're going to call maker, and pass maker. Let's do it:
 
-((fn [maker]
-   (maker))
- (fn []
-   (fn [lat]
-     (cond
-      (null? lat) false
-      (number? (first lat)) true
-      :else ((maker) (rest lat)))))) ;; Read Carefully! We call maker, and maker returns a fn. We then call THAT fn with (rest lat)
+;; ((fn [maker]
+;;    (maker))
+;;  (fn []
+;;    (fn [lat]
+;;      (cond
+;;       (null? lat) false
+;;       (number? (first lat)) true
+;;       :else ((maker) (rest lat)))))) ;; Read Carefully! We call maker, and maker returns a fn. We then call THAT fn with (rest lat)
 ;;
 ;; There is ONE REMAINING PROBLEM. We can't call maker in the else clause, because maker is not in scope. We get it into scope by
 ;;  passing it in as a parameter, and propogating that on any subsequent calls to maker too. Like this:
-(
-((fn [maker]
-   (maker maker))          ;; Change # 1: pass maker, so that the inner fn can call it.
- (fn [maker]               ;; Change # 2: accept maker as an arg
-   (fn [lat]
-     (cond
-      (null? lat) false
-      (number? (first lat)) true
-      :else ((maker maker) (rest lat)))))) ;; Change 3: when we call maker to recur, pass maker to it.
-'(a s d f g h j k l 42))
+;; (
+;; ((fn [maker]
+;;    (maker maker))          ;; Change # 1: pass maker, so that the inner fn can call it.
+;;  (fn [maker]               ;; Change # 2: accept maker as an arg
+;;    (fn [lat]
+;;      (cond
+;;       (null? lat) false
+;;       (number? (first lat)) true
+;;       :else ((maker maker) (rest lat)))))) ;; Change 3: when we call maker to recur, pass maker to it.
+;; '(a s d f g h j k l 42))
 ;; So, does the above work as an impl of any-number? YES IT DOES!!!
 
 ;; So perhaps this is really just another use of continuations! When it is time to recur, you call the fn I give you, and I will
@@ -1811,3 +1812,107 @@
 ;;  This kind of thing helps illustrate why a Haskell fn defined one way succeeds against an infinite list, but fails when slightly
 ;;  tweaked and applied to an infinite list. Is the "infinite part" totally encapsulated in the "lazy part"? If so, you're good to
 ;;  go. If not you're screwed.
+
+;; So then, he proposes a tweak to his "lenght" fn. He tries to apply the name "length" to the length fn for readability. But he
+;;  fails. His result recurs forever because the infinite part is no longer inside the lazy part. Just to make sure I'm
+;;  understanding him correctly, let me type it in and try it.
+((fn [mk-length]
+   (mk-length mk-length))
+ (fn [mk-length]
+   ((fn [length]
+      (fn [l]
+        (cond
+         (null? l) 0
+         :else (add1 (length (rest l))))))
+    (mk-length mk-length))))
+
+;; Confirmed. Merely evaluating that code causes a stack overflow. So he's pointing out the distinction between the "lazy part" and
+;;  the non-lazy part, and also pointing out that the infinite part needs to go in the lazy part.
+;;
+;; Another thing going on here that caught me by surprise: when just executing that code snippet caused a stack overflow, for a sec
+;;  that surprised/ confused me. I thought, "I'm just defining something, why would that stack overflow?" But of course, I'm executing
+;;  code. Sort of how in Ruby even definitions are executed code, likewise here. I knew that, of course, because I just made reference
+;;  to the fact that we were declaring and calling an "immediately executing function". But I temporarily forgot it.
+
+;; So, now he wants to still "get back a fn that looks like length", but without breaking things as he did on his first try.
+;; He wants to turn (mk-length mk-length) into a fn. So he simply wraps it in a fn. Like this:
+;; (fn [x]
+;;   ((mk-length mk-length) x))
+;;
+;; legal enough.
+;;
+;; So length becomes:
+((fn [mk-length]
+   (mk-length mk-length))
+ (fn [mk-length]
+   (fn [l]
+     (cond
+      (null? l) 0
+      :else (add1
+             ((fn [x]
+                ((mk-length mk-length) x))
+             (rest l)))))))
+;;
+;; Works fine. But so far, we have only obfuscated things a bit from the previously working version of length. But that's prepared
+;;  us for the next step. Now that (mk-length mk-length) is wrapped in a fn, we can pass that wrapping fn as a param. So we can
+;;  insert a NEW fn (yes, a FOURTH one) that takes our new wrapping fn as a param. The new (fourth) fn will look like "length".
+((fn [mk-length]
+   (mk-length mk-length))
+ (fn [mk-length]
+   ((fn [length-fn]                               ;; Next, he asks if we can extract this fn right here and give it a name.
+      (fn [l]
+        (cond
+         (null? l) 0
+         :else (add1 (length-fn (rest l))))))
+    (fn [x]
+      ((mk-length mk-length) x)))))
+
+;; Note comment above. His next question is, can we extract the fn that starts on the line commented above and give it a name.
+;;  His answer is "yes", and further he notes that it does not depend on mk-length at all.
+
+;; So I guess what he has been striving for is a fn that looks like length and does not have any "orthogonal" influences. It is
+;;   not "polluted" by all this "infrastructure" we have to put around it. Let's him fully separate infrastructure from
+;;  (pardon the next term) "business logic."
+
+;; Note that doing so will give us the SIXTH FN. Let me take a stab without looking at his solution:
+;; To name a fn, what do you do? You insert a NEW FN, that takes a PARAMETER with the name you want, and you call this new fn, passing
+;;  the fn you want to name as an arg.
+
+;; ((fn [mk-length]
+;;    (mk-length mk-length))
+;;  (fn [mk-length]
+;;    ((fn [this-is-the-new-name]
+;;       (this-is-the-new-name))
+;;     ((fn [length-fn]
+;;        (fn [l]
+;;          (cond
+;;           (null? l) 0
+;;           :else (add1 (length-fn (rest l))))))
+;;      (fn [x]
+;;        ((mk-length mk-length) x))))))
+
+;; This (above) was my first attempt, but it's not right. We don't want to name the fn  that comes from executing the length-fn with
+;;  the final fn. We want to actually name the length-fn by itself. So here goes:
+((fn [mk-length]
+   (mk-length mk-length))
+ (fn [mk-length]
+   ((fn [this-is-the-new-name length-fn]
+      (this-is-the-new-name length-fn))
+    (fn [length-fn]
+      (fn [l]
+        (cond
+         (null? l) 0
+         :else (add1 (length-fn (rest l))))))
+    (fn [x]
+      ((mk-length mk-length) x)))))
+;;
+;; Awesome! That works, let's see if that's what he had in mind.
+;;
+;; Not precisely. He did something equivalent, but he made the "business logic" fn be the last thing, and the let-over-lambda that
+;;  names it be the first thing. I can see how that could be equivalent. There are a number of ways these nested fns could be
+;;  arranged.
+;;
+;; So, what he winds up with is the "length" fn (aka, the "business logic") being at the end, and completely detangled from the
+;;  "infrastructure", and the "infrastructure" we wind up with is the "APPLICATIVE-ORDER Y COMBINATOR"
+
+;; PHEW!
